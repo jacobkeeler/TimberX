@@ -38,7 +38,7 @@ class RealQueueHelper(
             return
         }
         val currentList = queueDao.getQueueSongsSync()
-        val songListToSave = queueSongs.toSongEntityList(songsRepository)
+        val songListToSave = queueSongs.toSongEntityList(songsRepository).sortedBy { queueSongs.indexOf(it.id) }
 
         val listsEqual = currentList.equalsBy(songListToSave) { left, right ->
             left.id == right.id

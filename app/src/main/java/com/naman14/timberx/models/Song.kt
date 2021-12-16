@@ -72,7 +72,7 @@ data class Song(
                     title = cursor.valueOrEmpty(MediaStore.Audio.AudioColumns.TITLE),
                     artist = cursor.valueOrEmpty(MediaStore.Audio.AudioColumns.ARTIST),
                     album = cursor.valueOrEmpty(MediaStore.Audio.AudioColumns.ALBUM),
-                    duration = (cursor.value<Long>(MediaStore.Audio.AudioColumns.DURATION) / 1000).toInt(),
+                    duration = cursor.value<Long>(MediaStore.Audio.AudioColumns.DURATION).toInt(),
                     trackNumber = cursor.value<Int>(MediaStore.Audio.AudioColumns.TRACK).normalizeTrackNumber()
             )
         }
