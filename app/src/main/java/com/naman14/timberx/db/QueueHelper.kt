@@ -14,6 +14,7 @@
  */
 package com.naman14.timberx.db
 
+import android.util.Log
 import com.naman14.timberx.extensions.equalsBy
 import com.naman14.timberx.extensions.toSongEntityList
 import com.naman14.timberx.repository.SongsRepository
@@ -38,12 +39,15 @@ class RealQueueHelper(
             return
         }
         val currentList = queueDao.getQueueSongsSync()
+        //Log.i("Debugmsg", "updateQueueSongs: currentList, " + currentList[0].toString())
+        Log.i("Debugmsg", "updateQueueSongs: queueSongs, " + queueSongs[0].toString())
         val songListToSave = queueSongs.toSongEntityList(songsRepository).sortedBy { queueSongs.indexOf(it.id) }
 
         val listsEqual = currentList.equalsBy(songListToSave) { left, right ->
             left.id == right.id
         }
         if (queueSongs.isNotEmpty() && !listsEqual) {
+            Log.i("Debugmsg", "updateQueueSongs: Not Equal, " + songListToSave[0].toString())
             queueDao.clearQueueSongs()
             queueDao.insertAllSongs(songListToSave)
             setCurrentSongId(currentSongId)

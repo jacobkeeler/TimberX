@@ -18,12 +18,20 @@ import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.ImageDecoder.OnHeaderDecodedListener
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import com.naman14.timberx.R
+import com.naman14.timberx.models.MediaID
+import com.naman14.timberx.models.Song
+import com.naman14.timberx.repository.PlaylistRepository
+import timber.log.Timber
 import java.io.FileNotFoundException
 import android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI as AUDIO_URI
 import timber.log.Timber.d as log
+
 
 // TODO get rid of this and move things to respective repositories
 object MusicUtils {
@@ -48,7 +56,13 @@ object MusicUtils {
     fun getAlbumArtBitmap(context: Context, albumId: Long?): Bitmap? {
         if (albumId == null) return null
         return try {
-            MediaStore.Images.Media.getBitmap(context.contentResolver, Utils.getAlbumArtUri(albumId))
+            //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            //    val source = ImageDecoder.createSource(context.contentResolver, Utils.getAlbumArtUri(albumId))
+            //    val listener = OnHeaderDecodedListener { decoder, info, source -> decoder.setTargetSize(260, 260) }
+            //    ImageDecoder.decodeBitmap(source, listener)
+            //} else {
+                MediaStore.Images.Media.getBitmap(context.contentResolver, Utils.getAlbumArtUri(albumId))
+            //}
         } catch (e: FileNotFoundException) {
             BitmapFactory.decodeResource(context.resources, R.drawable.icon)
         }

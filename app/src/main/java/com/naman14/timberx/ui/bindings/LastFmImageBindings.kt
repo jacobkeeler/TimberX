@@ -214,10 +214,10 @@ private fun View.px(@DimenRes dimen: Int) = resources.getDimensionPixelSize(dime
 
 private fun View.useLastFmAlbumImages(): Boolean {
     return PreferenceManager.getDefaultSharedPreferences(context)
-            .getBoolean(LASTFM_ALBUM_IMAGE, true)
+            .getBoolean(LASTFM_ALBUM_IMAGE, false)
 }
 
 private fun View.useLastFmArtistImages(): Boolean {
     return PreferenceManager.getDefaultSharedPreferences(context)
-            .getBoolean(LASTFM_ARTIST_IMAGE, true)
+            .getBoolean(LASTFM_ARTIST_IMAGE, false)
 }

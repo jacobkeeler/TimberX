@@ -14,24 +14,33 @@
  */
 package com.naman14.timberx.ui.fragments
 
+import android.nfc.Tag
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.forEach
+import androidx.core.view.forEachIndexed
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.DividerItemDecoration.VERTICAL
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.naman14.timberx.R
 import com.naman14.timberx.databinding.FragmentPlaylistsBinding
+import com.naman14.timberx.databinding.ItemPlaylistBinding
 import com.naman14.timberx.extensions.*
 import com.naman14.timberx.models.Playlist
+import com.naman14.timberx.repository.PlaylistRepository
 import com.naman14.timberx.ui.adapters.PlaylistAdapter
 import com.naman14.timberx.ui.dialogs.CreatePlaylistDialog
 import com.naman14.timberx.ui.fragments.base.MediaItemFragment
 import com.naman14.timberx.util.AutoClearedValue
+import kotlinx.android.synthetic.main.item_playlist.view.*
+import org.koin.android.ext.android.inject
 
 class PlaylistFragment : MediaItemFragment(), CreatePlaylistDialog.PlaylistCreatedCallback {
     var binding by AutoClearedValue<FragmentPlaylistsBinding>(this)
+    var playlistBinding by AutoClearedValue<ItemPlaylistBinding>(this)
     private lateinit var playlistAdapter: PlaylistAdapter
 
     override fun onCreateView(
@@ -43,10 +52,12 @@ class PlaylistFragment : MediaItemFragment(), CreatePlaylistDialog.PlaylistCreat
         return binding.root
     }
 
+    private val playlistsRepository by inject<PlaylistRepository>()
+
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        playlistAdapter = PlaylistAdapter()
+        playlistAdapter = PlaylistAdapter(playlistsRepository)
         binding.recyclerView.apply {
             layoutManager = LinearLayoutManager(safeActivity)
             adapter = playlistAdapter
@@ -55,6 +66,8 @@ class PlaylistFragment : MediaItemFragment(), CreatePlaylistDialog.PlaylistCreat
             })
             addOnItemClick { position, _ ->
                 mainViewModel.mediaItemClicked(playlistAdapter.playlists[position], null)
+            }
+            forEachIndexed { index, item ->
             }
         }
 
