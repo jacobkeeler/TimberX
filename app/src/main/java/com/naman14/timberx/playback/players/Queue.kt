@@ -15,7 +15,9 @@
 package com.naman14.timberx.playback.players
 
 import android.app.Application
+import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat.REPEAT_MODE_ALL
 import android.support.v4.media.session.PlaybackStateCompat.SHUFFLE_MODE_ALL
 import com.naman14.timberx.R
 import com.naman14.timberx.db.QueueDao
@@ -75,16 +77,35 @@ class RealQueue(
 ) : Queue {
 
     private lateinit var session: MediaSessionCompat
-    private val shuffleRandom = Random()
-    private val previousShuffles = mutableListOf<Int>()
 
     override var ids = LongArray(0)
         set(value) {
             field = value
+            if (session.controller.shuffleMode == SHUFFLE_MODE_ALL) {
+                shuffledIds = ids.clone()
+                shuffledIds.shuffle()
+                shuffledIds = shuffledIds.toMutableList()
+                        .moveElement(shuffledIds.indexOf(currentSongId), 0)
+                        .toLongArray()
+            }
             if (value.isNotEmpty()) {
                 session.setQueue(asQueueItems())
             }
         }
+    private var shuffledIds = LongArray(0)
+        set(value) {
+            field = value
+            if (value.isNotEmpty() && session.controller.shuffleMode == SHUFFLE_MODE_ALL) {
+                session.setQueue(asQueueItems())
+            }
+        }
+
+    private fun activeIds(): LongArray
+    {
+        val controller = session.controller
+        return if (controller.shuffleMode == SHUFFLE_MODE_ALL) shuffledIds else ids
+    }
+
     override var title: String = context.getString(R.string.all_songs)
         set(value) {
             val previousValue = field
@@ -94,77 +115,126 @@ class RealQueue(
                 value
             }
             if (value != previousValue) {
-                previousShuffles.clear()
                 session.setQueueTitle(value)
             }
         }
 
     override var currentSongId: Long = SONG_ID_NONE
     override val currentSongIndex: Int
-        get() = ids.indexOf(currentSongId)
+        get() {
+            return activeIds().indexOf(currentSongId)
+        }
 
     override val previousSongId: Long?
         get() {
             val previousIndex = currentSongIndex - 1
-            return if (previousIndex >= 0) {
-                ids[previousIndex]
-            } else {
-                null
+            return when {
+                previousIndex >= 0 -> activeIds()[previousIndex]
+                else -> null
             }
         }
 
     override val nextSongIndex: Int?
         get() {
             val nextIndex = currentSongIndex + 1
-            val controller = session.controller
+
             return when {
-                controller.shuffleMode == SHUFFLE_MODE_ALL -> getShuffleIndex()
-                nextIndex < ids.size -> nextIndex
+                nextIndex < activeIds().size -> nextIndex
+                session.controller.repeatMode == REPEAT_MODE_ALL -> 0
                 else -> null
             }
         }
     override val nextSongId: Long?
         get() {
             val nextIndex = nextSongIndex
-            return if (nextIndex != null) {
-                ids[nextIndex]
-            } else {
-                null
+            return when {
+                nextIndex != null -> activeIds()[nextIndex]
+                else -> null
             }
         }
 
     override fun setMediaSession(session: MediaSessionCompat) {
         this.session = session
+        val callback = object : MediaControllerCompat.Callback() {
+            override fun onShuffleModeChanged(shuffleMode: Int) {
+                super.onShuffleModeChanged(shuffleMode)
+                if (shuffleMode == SHUFFLE_MODE_ALL) {
+                    shuffledIds = ids.clone()
+                    shuffledIds.shuffle()
+                    shuffledIds = shuffledIds.toMutableList()
+                            .moveElement(shuffledIds.indexOf(currentSongId), 0)
+                            .toLongArray()
+                }
+                else {
+                    shuffledIds = LongArray(0)
+                }
+
+                if (activeIds().isNotEmpty()) {
+                    session.setQueue(asQueueItems())
+                }
+            }
+        }
+        session.controller.registerCallback(callback)
+        if (session.controller.shuffleMode == SHUFFLE_MODE_ALL) {
+            shuffledIds = ids.clone()
+            shuffledIds.shuffle()
+            //currentSongId = shuffledIds[0]
+        }
     }
 
     override fun swap(from: Int, to: Int) {
-        ids = ids.toMutableList()
+        val controller = session.controller
+        if (controller.shuffleMode == SHUFFLE_MODE_ALL) {
+            shuffledIds = shuffledIds.toMutableList()
+                    .moveElement(from, to)
+                    .toLongArray()
+        }
+        else {
+            ids = ids.toMutableList()
                 .moveElement(from, to)
                 .toLongArray()
+        }
     }
 
     override fun moveToNext(id: Long) {
         val nextIndex = currentSongIndex + 1
-        val list = ids.toMutableList().apply {
-            remove(id)
-            add(nextIndex, id)
+        val controller = session.controller
+        if (controller.shuffleMode == SHUFFLE_MODE_ALL) {
+            val list = shuffledIds.toMutableList().apply {
+                remove(id)
+                add(nextIndex, id)
+            }
+            shuffledIds = list.toLongArray()
         }
-        ids = list.toLongArray()
+        else {
+            val list = ids.toMutableList().apply {
+                remove(id)
+                add(nextIndex, id)
+            }
+            ids = list.toLongArray()
+        }
     }
 
-    override fun firstId() = ids.first()
+    override fun firstId() = activeIds().first()
 
-    override fun lastId() = ids.last()
+    override fun lastId() = activeIds().last()
 
     override fun remove(id: Long) {
         val list = ids.toMutableList().apply {
             remove(id)
         }
         ids = list.toLongArray()
+        val controller = session.controller
+        if (controller.shuffleMode == SHUFFLE_MODE_ALL) {
+            val list2 = shuffledIds.toMutableList().apply {
+                remove(id)
+            }
+            shuffledIds = list2.toLongArray()
+        }
     }
 
     override fun asQueueItems(): List<MediaSessionCompat.QueueItem> {
-        return ids.toQueue(songsRepository)
+        return activeIds().toQueue(songsRepository)
     }
 
     override fun currentSong(): Song {
@@ -179,12 +249,12 @@ class RealQueue(
     }
 
     override fun reset() {
-        previousShuffles.clear()
         ids = LongArray(0)
+        shuffledIds = LongArray(0)
         currentSongId = SONG_ID_NONE
     }
 
-    private fun getShuffleIndex(): Int {
+    /*private fun getShuffleIndex(): Int {
         val newIndex = shuffleRandom.nextInt(ids.size - 1)
         if (previousShuffles.contains(newIndex)) {
             return getShuffleIndex()
@@ -195,5 +265,5 @@ class RealQueue(
             previousShuffles.removeAt(0)
         }
         return newIndex
-    }
+    }*/
 }

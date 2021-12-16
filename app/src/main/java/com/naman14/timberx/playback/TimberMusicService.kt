@@ -19,8 +19,11 @@ import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
 import android.support.v4.media.MediaDescriptionCompat
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_MEDIA_ID
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.MediaMetadataCompat.*
+import android.support.v4.media.session.PlaybackStateCompat
 import android.support.v4.media.session.PlaybackStateCompat.STATE_NONE
+import android.util.Log
 import androidx.annotation.Nullable
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
@@ -28,29 +31,42 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.session.MediaButtonReceiver
+import com.google.android.material.snackbar.Snackbar
 import com.naman14.timberx.R
 import com.naman14.timberx.constants.Constants
 import com.naman14.timberx.constants.Constants.ACTION_NEXT
+import com.naman14.timberx.constants.Constants.ACTION_NOW_PLAYING
 import com.naman14.timberx.constants.Constants.ACTION_PREVIOUS
+import com.naman14.timberx.constants.Constants.ACTION_TOGGLE_REPEAT
+import com.naman14.timberx.constants.Constants.ACTION_TOGGLE_SHUFFLE
+import com.naman14.timberx.constants.Constants.ALBUM_ID
 import com.naman14.timberx.constants.Constants.APP_PACKAGE_NAME
+import com.naman14.timberx.constants.Constants.ARTIST_ID
+import com.naman14.timberx.constants.Constants.PLAYING
+import com.naman14.timberx.constants.Constants.PLAYLIST_ID
+import com.naman14.timberx.constants.Constants.POSITION
+import com.naman14.timberx.constants.Constants.REPEAT_MODE
+import com.naman14.timberx.constants.Constants.SHUFFLE_MODE
+import com.naman14.timberx.constants.Constants.SONG
+import com.naman14.timberx.constants.Constants.SONG_METADATA
 import com.naman14.timberx.db.QueueEntity
 import com.naman14.timberx.db.QueueHelper
-import com.naman14.timberx.extensions.attachLifecycle
-import com.naman14.timberx.extensions.isPlayEnabled
-import com.naman14.timberx.extensions.isPlaying
-import com.naman14.timberx.extensions.toIDList
-import com.naman14.timberx.extensions.toRawMediaItems
+import com.naman14.timberx.extensions.*
 import com.naman14.timberx.models.MediaID
 import com.naman14.timberx.models.MediaID.Companion.CALLER_OTHER
 import com.naman14.timberx.models.MediaID.Companion.CALLER_SELF
 import com.naman14.timberx.notifications.Notifications
 import com.naman14.timberx.permissions.PermissionsManager
+import com.naman14.timberx.playback.players.OnNowPlayingListener
 import com.naman14.timberx.playback.players.SongPlayer
 import com.naman14.timberx.repository.AlbumRepository
 import com.naman14.timberx.repository.ArtistRepository
 import com.naman14.timberx.repository.GenreRepository
 import com.naman14.timberx.repository.PlaylistRepository
 import com.naman14.timberx.repository.SongsRepository
+import com.naman14.timberx.sdl.SdlService
+import com.naman14.timberx.ui.viewmodels.MainViewModel
+import com.naman14.timberx.util.MusicUtils
 import com.naman14.timberx.util.Utils.EMPTY_ALBUM_ART_URI
 import io.reactivex.functions.Consumer
 import kotlinx.coroutines.Dispatchers.IO
@@ -60,7 +76,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.get
 import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.standalone.KoinComponent
+import timber.log.Timber
 import timber.log.Timber.d as log
 
 // TODO pull out media logic to separate class to make this more readable
@@ -79,12 +97,15 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
         const val TYPE_ALBUM = 10
         const val TYPE_ARTIST = 11
         const val TYPE_PLAYLIST = 12
-        const val TYPE_ALL_FOLDERS = 13
-        const val TYPE_ALL_GENRES = 14
-        const val TYPE_GENRE = 15
+        const val TYPE_LINK = 13
+        const val TYPE_ALL_FOLDERS = 14
+        const val TYPE_ALL_GENRES = 15
+        const val TYPE_GENRE = 16
 
         const val NOTIFICATION_ID = 888
     }
+
+    private val TAG = "Timber"
 
     private val notifications by inject<Notifications>()
     private val albumRepository by inject<AlbumRepository>()
@@ -92,6 +113,7 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
     private val songsRepository by inject<SongsRepository>()
     private val genreRepository by inject<GenreRepository>()
     private val playlistRepository by inject<PlaylistRepository>()
+    //private val sdlService by inject<SdlService>()
 
     private lateinit var player: SongPlayer
     private val queueHelper by inject<QueueHelper>()
@@ -138,6 +160,28 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
         player.onCompletion {
             notifications.updateNotification(player.getSession())
         }
+
+        val context = this
+        val initialIntent = Intent(context, SdlService::class.java)
+        context.startService(initialIntent)
+        player.setOnNowPlayingListener(object : OnNowPlayingListener {
+            override fun onNowPlaying(metadata: MediaMetadataCompat, position: Long, playing: Boolean) {
+                val actionIntent = Intent(context, SdlService::class.java).apply {
+                    action = ACTION_NOW_PLAYING
+                }
+                actionIntent.putExtra(SONG_METADATA, metadata)
+                actionIntent.putExtra(POSITION, position)
+                actionIntent.putExtra(PLAYING, playing)
+
+                val mediaSession = player.getSession()
+                val controller = mediaSession.controller
+                actionIntent.putExtra(SHUFFLE_MODE, controller.shuffleMode)
+                actionIntent.putExtra(REPEAT_MODE, controller.repeatMode)
+
+                log("EVENT_NOW_PLAYING: ${metadata.description}, ${metadata.getString(METADATA_KEY_ALBUM_ART_URI)}")
+                context.startService(actionIntent)
+            }
+        })
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -158,11 +202,83 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                     }
                 }
             }
+            Constants.ACTION_PLAY -> {
+                controller.transportControls.play()
+            }
+            Constants.ACTION_SHUFFLE_ALL -> {
+                val allSongs = songsRepository.loadSongs("SDL")
+                Timber.i("all songs length: %s", allSongs.size)
+                val songQueue = MusicUtils.shuffleWithLinks(allSongs, playlistRepository)
+                val extras = getExtraBundle(songQueue.toSongIds(), getString(R.string.all_songs))
+                Timber.i("queue length: %s", songQueue.size)
+                if (songQueue.isEmpty()) {
+                    Timber.w(getString(R.string.shuffle_no_songs_error))
+                } else {
+                    controller.transportControls.playFromMediaId(songQueue[0].mediaId, extras)
+                }
+            }
+            Constants.ACTION_PLAY_ARTIST -> {
+                if (intent.hasExtra(ARTIST_ID)) {
+                    val artistID = intent.getLongExtra(ARTIST_ID, -1)
+                    val songs = artistRepository.getSongsForArtist(artistID, "SDL")
+                    //val songQueue = MusicUtils.shuffleWithLinks(allSongs, playlistRepository)
+                    if (songs.isEmpty()) {
+                        Timber.w("No songs for artist with ID " + artistID)
+                    } else {
+                        val extras = getExtraBundle(songs.toSongIds(), artistRepository.getArtist(artistID).name)
+                        controller.transportControls.playFromMediaId(songs[0].mediaId, extras)
+                    }
+                }
+            }
+            Constants.ACTION_PLAY_ALBUM -> {
+                if (intent.hasExtra(ALBUM_ID)) {
+                    val albumID = intent.getLongExtra(ALBUM_ID, -1)
+                    val songs = albumRepository.getSongsForAlbum(albumID, "SDL").sortedBy { it.trackNumber }
+                    //val songQueue = MusicUtils.shuffleWithLinks(allSongs, playlistRepository)
+                    if (songs.isEmpty()) {
+                        Timber.w("No songs for album with ID " + albumID)
+                    } else {
+                        val extras = getExtraBundle(songs.toSongIds(), albumRepository.getAlbum(albumID).title)
+                        controller.transportControls.playFromMediaId(songs[0].mediaId, extras)
+                    }
+                }
+            }
+            Constants.ACTION_PLAY_PLAYLIST -> {
+                if (intent.hasExtra(PLAYLIST_ID)) {
+                    val playlistID = intent.getLongExtra(PLAYLIST_ID, -1)
+                    val songs = playlistRepository.getSongsInPlaylist(playlistID, "SDL")
+                    //val songQueue = MusicUtils.shuffleWithLinks(allSongs, playlistRepository)
+                    if (songs.isEmpty()) {
+                        Timber.w("No songs for playlist with ID " + playlistID)
+                    } else {
+                        Timber.w(songs.size.toString() + " songs for playlist with ID " + playlistID)
+                        val extras = getExtraBundle(songs.toSongIds(), playlistRepository.getPlaylists("SDL").find { it.id == playlistID }!!.name)
+                        controller.transportControls.playFromMediaId(songs[0].mediaId, extras)
+                    }
+                }
+            }
             ACTION_NEXT -> {
                 controller.transportControls.skipToNext()
             }
             ACTION_PREVIOUS -> {
                 controller.transportControls.skipToPrevious()
+            }
+            ACTION_TOGGLE_SHUFFLE -> {
+                val shuffleMode = when (controller.shuffleMode) {
+                    PlaybackStateCompat.SHUFFLE_MODE_ALL -> PlaybackStateCompat.SHUFFLE_MODE_NONE
+                    else -> PlaybackStateCompat.SHUFFLE_MODE_ALL
+                }
+                Timber.i("SHUFFLE MODE: " + shuffleMode)
+                controller.transportControls.setShuffleMode(shuffleMode)
+            }
+            ACTION_TOGGLE_REPEAT -> {
+                val repeatMode = when (controller.repeatMode) {
+                    PlaybackStateCompat.REPEAT_MODE_ALL -> PlaybackStateCompat.REPEAT_MODE_ONE
+                    PlaybackStateCompat.REPEAT_MODE_ONE -> PlaybackStateCompat.REPEAT_MODE_NONE
+                    else -> PlaybackStateCompat.REPEAT_MODE_ALL
+                }
+                Timber.i("REPEAT MODE: " + repeatMode)
+                controller.transportControls.setRepeatMode(repeatMode)
             }
         }
 
@@ -321,6 +437,7 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
             }
 
             val queue = controller.queue
+            Log.i("Debugmsg", "saveCurrentData: " + queue[0].description + ", " + queue[0].queueId + ", " + queue.toIDList()[0])
             val currentId = controller.metadata?.getString(METADATA_KEY_MEDIA_ID)
             queueHelper.updateQueueSongs(queue?.toIDList(), currentId?.toLong())
 

@@ -37,6 +37,7 @@ import com.naman14.timberx.databinding.MainActivityBinding
 import com.naman14.timberx.extensions.*
 import com.naman14.timberx.models.MediaID
 import com.naman14.timberx.repository.SongsRepository
+import com.naman14.timberx.sdl.SdlReceiver
 import com.naman14.timberx.ui.activities.base.PermissionsActivity
 import com.naman14.timberx.ui.dialogs.DeleteSongDialog
 import com.naman14.timberx.ui.fragments.BottomControlsFragment
@@ -44,6 +45,7 @@ import com.naman14.timberx.ui.fragments.MainFragment
 import com.naman14.timberx.ui.fragments.base.MediaItemFragment
 import com.naman14.timberx.ui.viewmodels.MainViewModel
 import com.naman14.timberx.ui.widgets.BottomSheetListener
+import com.smartdevicelink.transport.SdlBroadcastReceiver
 import io.reactivex.functions.Consumer
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -70,6 +72,7 @@ class MainActivity : PermissionsActivity(), DeleteSongDialog.OnSongDeleted {
             }).attachLifecycle(this)
             return
         }
+        SdlBroadcastReceiver.queryForConnectedService(this);
 
         setupUI()
     }

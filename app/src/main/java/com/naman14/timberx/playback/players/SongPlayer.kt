@@ -17,6 +17,7 @@ package com.naman14.timberx.playback.players
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -25,32 +26,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM_ART
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ARTIST
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_DURATION
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_MEDIA_ID
-import android.support.v4.media.MediaMetadataCompat.METADATA_KEY_TITLE
+import android.support.v4.media.MediaMetadataCompat.*
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_PAUSE
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_PLAY
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_PLAY_PAUSE
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_SET_REPEAT_MODE
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-import android.support.v4.media.session.PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-import android.support.v4.media.session.PlaybackStateCompat.REPEAT_MODE_ALL
-import android.support.v4.media.session.PlaybackStateCompat.REPEAT_MODE_NONE
-import android.support.v4.media.session.PlaybackStateCompat.REPEAT_MODE_ONE
-import android.support.v4.media.session.PlaybackStateCompat.SHUFFLE_MODE_NONE
-import android.support.v4.media.session.PlaybackStateCompat.STATE_NONE
-import android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED
-import android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING
-import android.support.v4.media.session.PlaybackStateCompat.STATE_STOPPED
+import android.support.v4.media.session.PlaybackStateCompat.*
+import android.util.Log
 import androidx.core.net.toUri
 import com.naman14.timberx.R
 import com.naman14.timberx.constants.Constants.ACTION_REPEAT_QUEUE
@@ -67,6 +47,11 @@ import com.naman14.timberx.models.Song
 import com.naman14.timberx.repository.SongsRepository
 import com.naman14.timberx.util.MusicUtils
 import timber.log.Timber
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import kotlin.math.floor
+import kotlin.math.min
 
 typealias OnIsPlaying = SongPlayer.(playing: Boolean) -> Unit
 
@@ -82,6 +67,8 @@ interface SongPlayer {
         data: LongArray = LongArray(0),
         title: String = ""
     )
+
+    fun setOnNowPlayingListener(onNowPlayingListener: OnNowPlayingListener)
 
     fun getSession(): MediaSessionCompat
 
@@ -128,9 +115,14 @@ interface SongPlayer {
     fun restoreFromQueueData(queueData: QueueEntity)
 }
 
+interface OnNowPlayingListener {
+    fun onNowPlaying(metadata: MediaMetadataCompat, position: Long, playing: Boolean)
+}
+
 class RealSongPlayer(
     private val context: Application,
-    private val musicPlayer: MusicPlayer,
+    private var musicPlayer: MusicPlayer,
+    private var nextMusicPlayer: MusicPlayer,
     private val songsRepository: SongsRepository,
     private val queueDao: QueueDao,
     private val queue: Queue
@@ -142,9 +134,12 @@ class RealSongPlayer(
     private var preparedCallback: OnPrepared<SongPlayer> = {}
     private var errorCallback: OnError<SongPlayer> = {}
     private var completionCallback: OnCompletion<SongPlayer> = {}
+    private var nextMusicPlayerID = -1L
+    private var onNowPlayingListener: OnNowPlayingListener? = null
 
     private var metadataBuilder = MediaMetadataCompat.Builder()
     private var stateBuilder = createDefaultPlaybackState()
+    private var wasPlaying = false
 
     private lateinit var audioManager: AudioManager
     private lateinit var focusRequest: AudioFocusRequest
@@ -179,7 +174,28 @@ class RealSongPlayer(
                 REPEAT_MODE_ALL -> {
                     controller.transportControls.sendCustomAction(ACTION_REPEAT_QUEUE, null)
                 }
-                else -> controller.transportControls.skipToNext()
+                else -> nextSong()
+            }
+        }
+
+        nextMusicPlayer.onPrepared {
+            Log.i("debugmsg", "PREPARED NEXT SONG")
+        }
+
+        nextMusicPlayer.onCompletion {
+            completionCallback(this@RealSongPlayer)
+            val controller = getSession().controller
+            when (controller.repeatMode) {
+                REPEAT_MODE_ONE -> {
+                    controller.transportControls.sendCustomAction(ACTION_REPEAT_SONG, null)
+                }
+                REPEAT_MODE_ALL -> {
+                    controller.transportControls.sendCustomAction(ACTION_REPEAT_QUEUE, null)
+                }
+                else -> {
+                    Log.i("debugmsg", "SOMEONE IS NOT PREPARED")
+                    controller.transportControls.skipToNext()
+                }
             }
         }
 
@@ -208,6 +224,10 @@ class RealSongPlayer(
         this.queue.title = title
     }
 
+    override fun setOnNowPlayingListener(onNowPlayingListener: OnNowPlayingListener) {
+        this.onNowPlayingListener = onNowPlayingListener
+    }
+
     override fun getSession(): MediaSessionCompat = mediaSession
 
     override fun playSong() {
@@ -229,6 +249,12 @@ class RealSongPlayer(
         }
         musicPlayer.reset()
 
+        musicPlayer.onPrepared {
+            preparedCallback(this@RealSongPlayer)
+            playSong()
+            seekTo(getSession().position().toInt())
+        }
+
         val path = MusicUtils.getSongUri(queue.currentSongId).toString()
         val isSourceSet = if (path.startsWith("content://")) {
             musicPlayer.setSource(path.toUri())
@@ -238,6 +264,26 @@ class RealSongPlayer(
         if (isSourceSet) {
             isInitialized = true
             musicPlayer.prepare()
+        }
+
+        if (queue.nextSongId != null && mediaSession.controller.repeatMode != REPEAT_MODE_ONE) {
+            nextMusicPlayer.reset()
+
+            nextMusicPlayer.onPrepared {
+                Log.i("debugmsg", "PREPARED NEXT SONG")
+            }
+            val nextPath = MusicUtils.getSongUri(queue.nextSongId!!).toString()
+            nextMusicPlayerID = queue.nextSongId!!
+            val isNextSourceSet = if (nextPath.startsWith("content://")) {
+                nextMusicPlayer.setSource(nextPath.toUri())
+            } else {
+                nextMusicPlayer.setSource(nextPath)
+            }
+            Timber.d("setNextMusicPlayer")
+            if (isNextSourceSet) {
+                nextMusicPlayer.getMediaPlayer().prepare()
+                musicPlayer.setNextMusicPlayer(nextMusicPlayer)
+            }
         }
     }
 
@@ -250,11 +296,26 @@ class RealSongPlayer(
     override fun playSong(song: Song) {
         Timber.d("playSong(): ${song.title}")
         if (queue.currentSongId != song.id) {
-            queue.currentSongId = song.id
-            isInitialized = false
+            if (nextMusicPlayerID == song.id && nextMusicPlayer.isPrepared()) {
+                Log.i("dbugmsg", "PLAYING PREPARED SONG")
+                val tmp = musicPlayer
+                musicPlayer = nextMusicPlayer
+                musicPlayer.setNextMusicPlayer(null);
+                nextMusicPlayer = tmp
+                nextMusicPlayer.reset()
+                nextMusicPlayerID = -1L;
+                //nextMusicPlayer = MusicPlayer
+                isInitialized = true
+            }
+            else {
+                Log.i("dbugmsg", "NOPE, NO PREPARED SONG")
+                nextMusicPlayer.reset()
+                isInitialized = false
+            }
             updatePlaybackState {
                 setState(STATE_STOPPED, 0, 1F)
             }
+            queue.currentSongId = song.id
         }
         setMetaData(song)
         playSong()
@@ -373,14 +434,28 @@ class RealSongPlayer(
     override fun setPlaybackState(state: PlaybackStateCompat) {
         mediaSession.setPlaybackState(state)
         state.extras?.let { bundle ->
-            mediaSession.setRepeatMode(bundle.getInt(REPEAT_MODE))
-            mediaSession.setShuffleMode(bundle.getInt(SHUFFLE_MODE))
+            if (bundle.containsKey(REPEAT_MODE)) mediaSession.setRepeatMode(bundle.getInt(REPEAT_MODE))
+            if (bundle.containsKey(SHUFFLE_MODE)) mediaSession.setShuffleMode(bundle.getInt(SHUFFLE_MODE))
         }
         if (state.isPlaying) {
             isPlayingCallback(this, true)
         } else {
             isPlayingCallback(this, false)
         }
+        Log.i("debugmsg", "SET PLAYBACK STATE: " + state.isPlaying + ", " + state.position)
+        val song = songsRepository.getSongForId(queue.currentSongId)
+        val path = context.getExternalFilesDir(null)
+        val artFile = File(path, "${song.albumId}.jpg")
+        val mediaMetadataNoArt = MediaMetadataCompat.Builder().apply {
+            putString(METADATA_KEY_ALBUM, song.album)
+            putString(METADATA_KEY_ARTIST, song.artist)
+            putString(METADATA_KEY_TITLE, song.title)
+            putString(METADATA_KEY_ALBUM_ART_URI, song.albumId.toString())
+            putString(METADATA_KEY_MEDIA_ID, song.id.toString())
+            putString(METADATA_KEY_ART_URI, artFile.absolutePath)
+            putLong(METADATA_KEY_DURATION, song.duration.toLong())
+        }.build()
+        onNowPlayingListener!!.onNowPlaying(mediaMetadataNoArt, state.position, state.isPlaying)
     }
 
     override fun restoreFromQueueData(queueData: QueueEntity) {
@@ -403,11 +478,10 @@ class RealSongPlayer(
             setExtras(extras)
         }
     }
-
     private fun setMetaData(song: Song) {
         // TODO make music utils injectable
-        val artwork = MusicUtils.getAlbumArtBitmap(context, song.albumId)
-        val mediaMetadata = metadataBuilder.apply {
+        var artwork = MusicUtils.getAlbumArtBitmap(context, song.albumId)
+        val mediaMetadata = MediaMetadataCompat.Builder().apply {
             putString(METADATA_KEY_ALBUM, song.album)
             putString(METADATA_KEY_ARTIST, song.artist)
             putString(METADATA_KEY_TITLE, song.title)
@@ -416,19 +490,54 @@ class RealSongPlayer(
             putString(METADATA_KEY_MEDIA_ID, song.id.toString())
             putLong(METADATA_KEY_DURATION, song.duration.toLong())
         }.build()
+        Log.i("debugmsg", "UPDATE METADATA")
+        val path = context.getExternalFilesDir(null)
+        val artFile = File(path, "${song.albumId}.jpg")
+        if (!artFile.exists() && artwork != null) {
+            Log.i("debugmsg", "WRITING FILE DATA")
+            val stream = ByteArrayOutputStream();
+            //val wScale = 130.0f / artwork.width
+            //val hScale = 130.0f / artwork.height
+            //val scale = min(wScale, hScale)
+            artwork.compress(Bitmap.CompressFormat.JPEG, 75, stream);
+            val byteArray = stream.toByteArray();
+            val output = FileOutputStream(artFile)
+            output.write(byteArray)
+            output.close()
+            Log.i("debugmsg", "FINISHED WRITING FILE DATA")
+        }
+        val mediaMetadataNoArt = MediaMetadataCompat.Builder().apply {
+            putString(METADATA_KEY_ALBUM, song.album)
+            putString(METADATA_KEY_ARTIST, song.artist)
+            putString(METADATA_KEY_TITLE, song.title)
+            putString(METADATA_KEY_ALBUM_ART_URI, song.albumId.toString())
+            putString(METADATA_KEY_ART_URI, artFile.absolutePath)
+            putString(METADATA_KEY_MEDIA_ID, song.id.toString())
+            putLong(METADATA_KEY_DURATION, song.duration.toLong())
+        }.build()
         mediaSession.setMetadata(mediaMetadata)
+        onNowPlayingListener!!.onNowPlaying(mediaMetadataNoArt, mediaSession.position(), mediaSession.isPlaying())
     }
 
     override fun onAudioFocusChange(focusChange: Int) {
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
-                pause()
+                if (musicPlayer.isPlaying()) {
+                    wasPlaying = true
+                    pause()
+                }
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                pause()
+                if (musicPlayer.isPlaying()) {
+                    wasPlaying = true
+                    pause()
+                }
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-               playSong()
+                if (wasPlaying) {
+                    wasPlaying = false
+                    playSong()
+                }
             }
         }
     }

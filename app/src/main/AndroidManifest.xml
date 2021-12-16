@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.BROADCAST_STICKY" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:name=".TimberXApp"
@@ -91,12 +95,38 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+        <service
+            android:name=".sdl.SdlService"
+            android:enabled="true"
+            android:exported="false"/>
 
         <receiver android:name="androidx.media.session.MediaButtonReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+
+        <service android:name="com.applink.security.AppLinkSecurity" >
+        </service>
+
+        <receiver android:name=".sdl.SdlReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="sdl.router.startservice" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".sdl.SdlRouterService"
+            android:exported="true"
+            android:process="com.smartdevicelink.router">
+            <intent-filter>
+                <action android:name="com.smartdevicelink.router.service" />
+            </intent-filter>
+            <meta-data android:name="sdl_custom_router" android:value="false" />
+            <meta-data android:name="@string/sdl_router_service_version_name" android:value="10" />
+        </service>
 
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"

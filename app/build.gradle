@@ -137,6 +137,8 @@ dependencies {
     implementation "androidx.compose.material:material-icons-core:${versions.compose}"
     implementation "androidx.compose.material:material-icons-extended:${versions.compose}"
     implementation "androidx.compose.runtime:runtime-livedata:${versions.compose}"
+
+    implementation 'com.smartdevicelink:sdl_android:5.3.1'
 }
 
 apply plugin: 'com.google.gms.google-services'

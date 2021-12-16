@@ -37,6 +37,10 @@ interface MusicPlayer {
 
     fun setSource(uri: Uri): Boolean
 
+    fun setNextMusicPlayer(nextMusicPlayer: MusicPlayer?): Boolean
+
+    fun getMediaPlayer(): MediaPlayer
+
     fun prepare()
 
     fun seekTo(position: Int)
@@ -86,6 +90,10 @@ class RealMusicPlayer(internal val context: Application) : MusicPlayer,
         player.start()
     }
 
+    override fun getMediaPlayer(): MediaPlayer {
+        return player
+    }
+
     override fun setSource(path: String): Boolean {
         Timber.d("setSource() - $path")
         try {
@@ -104,6 +112,22 @@ class RealMusicPlayer(internal val context: Application) : MusicPlayer,
             player.setDataSource(context, uri)
         } catch (e: Exception) {
             Timber.d("setSource() - failed")
+            onError(this, e)
+            return false
+        }
+        return true
+    }
+
+    override fun setNextMusicPlayer(nextMusicPlayer: MusicPlayer?): Boolean {
+        Timber.d("setNextMediaPlayer()")
+        if (nextMusicPlayer == null) {
+            player.setNextMediaPlayer(null)
+            return true
+        }
+        try {
+            player.setNextMediaPlayer(nextMusicPlayer.getMediaPlayer())
+        } catch (e: Exception) {
+            Timber.d("setNextMediaPlayer() - failed")
             onError(this, e)
             return false
         }

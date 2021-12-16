@@ -33,6 +33,6 @@ val mediaModule = module {
     } bind Queue::class
 
     factory {
-        RealSongPlayer(get(), get(), get(), get(), get())
+        RealSongPlayer(get(), get(), get(), get(), get(), get())
     } bind SongPlayer::class
 }
