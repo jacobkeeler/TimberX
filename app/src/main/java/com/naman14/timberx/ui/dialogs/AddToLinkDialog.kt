@@ -27,13 +27,15 @@ import com.naman14.timberx.models.MediaID.Companion.CALLER_SELF
 import com.naman14.timberx.models.Song
 import com.naman14.timberx.repository.PlaylistRepository
 import com.naman14.timberx.constants.Constants.SONGS
+import com.naman14.timberx.extensions.toQueue
 import com.naman14.timberx.extensions.toast
+import com.naman14.timberx.repository.SongsRepository
 import org.koin.android.ext.android.inject
 
-class AddToPlaylistDialog : DialogFragment(), CreatePlaylistDialog.PlaylistCreatedCallback {
+class AddToLinkDialog : DialogFragment(), CreatePlaylistDialog.PlaylistCreatedCallback {
 
     companion object {
-        private const val TAG = "AddToPlaylistDialog"
+        private const val TAG = "AddToLinkDialog"
 
         fun show(activity: FragmentActivity, song: Song? = null) {
             val songs: LongArray
@@ -47,7 +49,7 @@ class AddToPlaylistDialog : DialogFragment(), CreatePlaylistDialog.PlaylistCreat
         }
 
         fun show(activity: FragmentActivity, songList: LongArray) {
-            val dialog = AddToPlaylistDialog().apply {
+            val dialog = AddToLinkDialog().apply {
                 arguments = Bundle().apply { putLongArray(SONGS, songList) }
             }
             dialog.show(activity.supportFragmentManager, TAG)
@@ -58,32 +60,47 @@ class AddToPlaylistDialog : DialogFragment(), CreatePlaylistDialog.PlaylistCreat
         null
     }
     private val playlistRepository by inject<PlaylistRepository>()
+    private val songsRepository by inject<SongsRepository>()
 
     @NonNull
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val context = activity ?: throw IllegalStateException("Not attached")
         val playlists = playlistRepository.getPlaylists(CALLER_SELF)
         val itemList = mutableListOf<String>().apply {
-            add(getString(R.string.create_new_playlist))
-            addAll(playlists.filter { !it.name.startsWith("<Link>") }.map { it.name })
+            add(getString(R.string.create_new_link))
+            addAll(playlists.filter { it.name.startsWith("<Link>") }.map { it.name.substring(5) })
         }
 
         return MaterialDialog(context).show {
-            title(R.string.add_to_playlist)
+            title(R.string.add_to_link)
             listItems(items = itemList) { _, index, _ ->
                 val songs = arguments?.getLongArray(SONGS) ?: return@listItems
+                var playlistId = 0L;
                 if (index == 0) {
-                    CreatePlaylistDialog.show(this@AddToPlaylistDialog, songs)
-                } else {
-                    val inserted = playlistRepository.addToPlaylist(playlists[index - 1].id, songs)
+                    val root = songsRepository.getSongsForIds(songs)[0];
+                    playlistId = playlistRepository.createPlaylist("<Link> " + root.title + ":" + root.artist);
+                    if (playlistId == -1L) {
+                        context.toast(R.string.unable_create_link)
+                    } else {
+                        (targetFragment as? CreatePlaylistDialog.PlaylistCreatedCallback)?.onPlaylistCreated();
+                    }
+                }
+                else {
+                    playlistId = playlists[index - 1].id;
+                }
+
+                if (songs.isNotEmpty()) {
+                    val inserted = playlistRepository.addToPlaylist(playlistId, songs)
                     val message = context.resources.getQuantityString(
                             R.plurals.NNNtrackstoplaylist, inserted, inserted)
                     context.toast(message)
+                } else {
+                    context.toast(R.string.playlist_created)
                 }
             }
             onDismiss {
                 // Make sure the DialogFragment dismisses as well
-                this@AddToPlaylistDialog.dismiss()
+                this@AddToLinkDialog.dismiss()
             }
         }
     }

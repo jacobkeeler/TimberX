@@ -53,4 +53,36 @@ object MusicUtils {
             BitmapFactory.decodeResource(context.resources, R.drawable.icon)
         }
     }
+
+    fun shuffleWithLinks(songs: List<Song>, playlistRepository: PlaylistRepository): List<Song> {
+        var shuffled = songs.shuffled()
+        var playlists = playlistRepository.getPlaylists(MediaID.CALLER_SELF)
+        playlists = playlists.filter { it.name.startsWith("<Link>") };
+        for (playlist in playlists) {
+            val linkSongs = playlistRepository.getSongsInPlaylist(playlist.id, MediaID.CALLER_SELF);
+            val root = linkSongs[0];
+            val rootIndex = shuffled.indexOf(
+                    shuffled.find { it.id == root.id }
+            );
+            Timber.i("rootIndex: %s", rootIndex)
+            for (i in 1 until linkSongs.size) {
+                val index = shuffled.indexOf(shuffled.find { it.id == linkSongs[i].id });
+                if (index != -1) {
+                    val dest = rootIndex + i;
+                    Timber.i("Adding song: (" + index + ") " + shuffled[index].title + " at index: " + dest)
+                    val editedQueue = shuffled.toMutableList();
+                    if(dest < editedQueue.size) {
+                        val temp = editedQueue[index];
+                        editedQueue[index] = editedQueue[dest];
+                        editedQueue[dest] = temp;
+                    } else {
+                        editedQueue.add(shuffled[index]);
+                    }
+
+                    shuffled = editedQueue;
+                }
+            }
+        }
+        return shuffled
+    }
 }

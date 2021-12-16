@@ -14,20 +14,32 @@
  */
 package com.naman14.timberx.ui.adapters
 
+import android.util.Log
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.naman14.timberx.R
 import com.naman14.timberx.databinding.ItemPlaylistBinding
 import com.naman14.timberx.models.Playlist
 import com.naman14.timberx.extensions.inflateWithBinding
+import com.naman14.timberx.repository.PlaylistRepository
+import kotlinx.android.synthetic.main.item_playlist.view.*
+import org.koin.android.ext.android.inject
 
-class PlaylistAdapter : RecyclerView.Adapter<PlaylistAdapter.ViewHolder>() {
+class PlaylistAdapter constructor(playlistRepository: PlaylistRepository) : RecyclerView.Adapter<PlaylistAdapter.ViewHolder>() {
     var playlists: List<Playlist> = emptyList()
         private set
-
+    var playlistRepository: PlaylistRepository? = playlistRepository
     fun updateData(playlists: List<Playlist>) {
         this.playlists = playlists
         notifyDataSetChanged()
+    }
+
+    fun deletePlaylist(playlist: Playlist) {
+        Log.d("PlaylistFragment", "Deleting item " + this.playlists.indexOf(playlist) + ", " + playlist.name)
+        var newPlaylists = this.playlists.toMutableList();
+        newPlaylists.remove(playlist);
+        playlistRepository?.deletePlaylist(playlist.id)
+        updateData(newPlaylists);
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -35,15 +47,16 @@ class PlaylistAdapter : RecyclerView.Adapter<PlaylistAdapter.ViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(playlists[position])
+        holder.bind(playlists[position], this)
     }
 
     override fun getItemCount() = playlists.size
 
     class ViewHolder constructor(var binding: ItemPlaylistBinding) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(playlist: Playlist) {
+        fun bind(playlist: Playlist, playlistAdapter: PlaylistAdapter) {
             binding.playlist = playlist
+            binding.playlistAdapter = playlistAdapter
             binding.executePendingBindings()
         }
     }

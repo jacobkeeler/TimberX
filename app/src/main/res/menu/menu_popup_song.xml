@@ -19,6 +19,10 @@
         android:title="@string/add_to_playlist" />
 
     <item
+        android:id="@+id/popup_song_addto_link"
+        android:title="@string/add_to_link" />
+
+    <item
         android:id="@+id/popup_song_goto_album"
         android:title="@string/go_to_album" />
 

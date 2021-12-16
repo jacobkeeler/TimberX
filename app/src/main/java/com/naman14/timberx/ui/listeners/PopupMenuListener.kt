@@ -27,6 +27,8 @@ interface PopupMenuListener {
 
     fun addToPlaylist(context: Context, song: Song)
 
+    fun addToLink(context: Context, song: Song)
+
     fun deleteSong(context: Context, song: Song)
 
     fun removeFromPlaylist(song: Song, playlistId: Long)

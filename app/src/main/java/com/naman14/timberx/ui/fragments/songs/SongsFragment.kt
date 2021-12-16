@@ -15,6 +15,7 @@
 package com.naman14.timberx.ui.fragments.songs
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -30,12 +31,18 @@ import com.naman14.timberx.constants.SongSortOrder.SONG_YEAR
 import com.naman14.timberx.constants.SongSortOrder.SONG_Z_A
 import com.naman14.timberx.databinding.LayoutRecyclerviewBinding
 import com.naman14.timberx.extensions.*
+import com.naman14.timberx.models.MediaID
+import com.naman14.timberx.models.Playlist
 import com.naman14.timberx.models.Song
+import com.naman14.timberx.repository.PlaylistRepository
+import com.naman14.timberx.ui.adapters.PlaylistAdapter
 import com.naman14.timberx.ui.adapters.SongsAdapter
 import com.naman14.timberx.ui.fragments.base.MediaItemFragment
 import com.naman14.timberx.ui.listeners.SortMenuListener
 import com.naman14.timberx.util.AutoClearedValue
+import com.naman14.timberx.util.MusicUtils
 import org.koin.android.ext.android.inject
+import timber.log.Timber
 
 class SongsFragment : MediaItemFragment() {
     private lateinit var songsAdapter: SongsAdapter
@@ -87,11 +94,11 @@ class SongsFragment : MediaItemFragment() {
                 .subscribe { mediaItemFragmentViewModel.reloadMediaItems() }
                 .disposeOnDetach(view)
     }
-
+    private val playlistRepository by inject<PlaylistRepository>()
     private val sortListener = object : SortMenuListener {
-        override fun shuffleAll() {
-            songsAdapter.songs.shuffled().apply {
-                val extras = getExtraBundle(toSongIds(), getString(R.string.all_songs))
+        override fun shuffleAll() {;
+            MusicUtils.shuffleWithLinks(songsAdapter.songs, playlistRepository).apply {
+                val extras = getExtraBundle(this.toSongIds(), getString(R.string.all_songs))
 
                 if (this.isEmpty()) {
                     Snackbar.make(binding.recyclerView, R.string.shuffle_no_songs_error, Snackbar.LENGTH_SHORT)

@@ -63,6 +63,7 @@ import com.naman14.timberx.repository.PlaylistRepository
 import com.naman14.timberx.repository.SongsRepository
 import com.naman14.timberx.ui.activities.MainActivity
 import com.naman14.timberx.ui.dialogs.AddToPlaylistDialog
+import com.naman14.timberx.ui.dialogs.AddToLinkDialog
 import com.naman14.timberx.ui.dialogs.DeleteSongDialog
 import com.naman14.timberx.ui.listeners.PopupMenuListener
 import com.naman14.timberx.util.Event
@@ -186,6 +187,10 @@ class MainViewModel(
 
         override fun addToPlaylist(context: Context, song: Song) {
             AddToPlaylistDialog.show(context as AppCompatActivity, song)
+        }
+
+        override fun addToLink(context: Context, song: Song) {
+            AddToLinkDialog.show(context as AppCompatActivity, song)
         }
 
         override fun removeFromPlaylist(song: Song, playlistId: Long) {

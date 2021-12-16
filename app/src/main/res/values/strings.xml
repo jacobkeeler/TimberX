@@ -9,6 +9,7 @@
 
     <string name="play">Play</string>
     <string name="add_to_playlist">Add to Playlist</string>
+    <string name="add_to_link">Add to Link</string>
     <string name="go_to_album">Go to Album</string>
     <string name="go_to_artist">Go to Artist</string>
     <string name="play_next">Play next</string>
@@ -23,14 +24,20 @@
     <string name="number_song_add_playlist"><xliff:g example="1" id="number">%d</xliff:g> song added to playlist.</string>
     <string name="number_songs_add_playlist"><xliff:g example="1" id="number">%d</xliff:g> songs added to playlist.</string>
 
+    <string name="number_song_add_link"><xliff:g example="1" id="number">%d</xliff:g> song added to link.</string>
+    <string name="number_songs_add_link"><xliff:g example="1" id="number">%d</xliff:g> songs added to link.</string>
+
     <string name="create">Create</string>
     <string name="delete">Delete</string>
 
     <string name="create_new_playlist">Create New Playlist</string>
+    <string name="create_new_link">Create New Link</string>
     <string name="delete_song_prompt">Delete Song?</string>
     <string name="enter_playlist_name">Enter playlist name…</string>
-    <string name="playlist_created">Playlist created!</string>
+    <string name="playlist_created">Playlist created!</string>>
+    <string name="link_created">Link created!</string>
     <string name="unable_create_playlist">Unable to create playlist!</string>
+    <string name="unable_create_link">Unable to create link!</string>
 
     <string name="media_playback">Media Playback</string>
     <string name="media_playback_controls">Media playback controls</string>
