@@ -64,7 +64,6 @@ import com.naman14.timberx.repository.ArtistRepository
 import com.naman14.timberx.repository.GenreRepository
 import com.naman14.timberx.repository.PlaylistRepository
 import com.naman14.timberx.repository.SongsRepository
-import com.naman14.timberx.sdl.SdlService
 import com.naman14.timberx.ui.viewmodels.MainViewModel
 import com.naman14.timberx.util.MusicUtils
 import com.naman14.timberx.util.Utils.EMPTY_ALBUM_ART_URI
@@ -162,13 +161,9 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
         }
 
         val context = this
-        val initialIntent = Intent(context, SdlService::class.java)
-        context.startService(initialIntent)
         player.setOnNowPlayingListener(object : OnNowPlayingListener {
             override fun onNowPlaying(metadata: MediaMetadataCompat, position: Long, playing: Boolean) {
-                val actionIntent = Intent(context, SdlService::class.java).apply {
-                    action = ACTION_NOW_PLAYING
-                }
+                val actionIntent = Intent(Constants.ACTION_NOW_PLAYING)
                 actionIntent.putExtra(SONG_METADATA, metadata)
                 actionIntent.putExtra(POSITION, position)
                 actionIntent.putExtra(PLAYING, playing)
@@ -179,7 +174,8 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                 actionIntent.putExtra(REPEAT_MODE, controller.repeatMode)
 
                 log("EVENT_NOW_PLAYING: ${metadata.description}, ${metadata.getString(METADATA_KEY_ALBUM_ART_URI)}")
-                context.startService(actionIntent)
+                //context.startService(actionIntent)
+                context.sendBroadcast(actionIntent)
             }
         })
     }
