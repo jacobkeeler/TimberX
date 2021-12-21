@@ -358,7 +358,7 @@ class SdlService : Service(), KoinComponent {
                 albumList)
         menuCells.add(albumMenu)
 
-        val allPlaylists = playlistRepository.getPlaylists(null)
+        val allPlaylists = playlistRepository.getPlaylists(null).filter { !it.name.startsWith("<Link>") }
         val playlistList: List<MenuCell> = allPlaylists.map {
             val id = it.id
             MenuCell(it.name, it.songCount.toString() + " Song(s)", null,
@@ -366,7 +366,7 @@ class SdlService : Service(), KoinComponent {
                     Arrays.asList("Start playlist " + it.name),
                     { sendPlayPlaylistAction(context, id) })
         }
-        val playlistMenu = MenuCell("Playlist", null, null, MenuLayout.LIST,
+        val playlistMenu = MenuCell("Playlists", null, null, MenuLayout.LIST,
                 null, null,
                 playlistList)
         menuCells.add(playlistMenu)
