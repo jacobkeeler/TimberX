@@ -69,10 +69,15 @@ class SdlService : Service(), KoinComponent {
     private val genreRepository by inject<GenreRepository>()
     private val playlistRepository by inject<PlaylistRepository>()
 
-    val broadCastReceiver = object : BroadcastReceiver() {
-        override fun onReceive(contxt: Context?, intent: Intent?) {
-            if (intent != null && Constants.ACTION_NOW_PLAYING.equals(intent.action)){
-                onNowPlaying(intent.extras)
+    val broadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null || sdlManager == null || !ready) {
+                return
+            }
+            when (intent.action) {
+                ACTION_NOW_PLAYING -> {
+                    intent.extras?.let { onNowPlaying(it) }
+                }
             }
         }
     }
