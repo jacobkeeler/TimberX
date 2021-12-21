@@ -215,6 +215,7 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                     Timber.w(getString(R.string.shuffle_no_songs_error))
                 } else {
                     controller.transportControls.playFromMediaId(songQueue[0].mediaId, extras)
+                    controller.transportControls.seekTo(0L)
                 }
             }
             Constants.ACTION_PLAY_ARTIST -> {
@@ -227,6 +228,7 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                     } else {
                         val extras = getExtraBundle(songs.toSongIds(), artistRepository.getArtist(artistID).name)
                         controller.transportControls.playFromMediaId(songs[0].mediaId, extras)
+                        controller.transportControls.seekTo(0L)
                     }
                 }
             }
@@ -240,6 +242,7 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                     } else {
                         val extras = getExtraBundle(songs.toSongIds(), albumRepository.getAlbum(albumID).title)
                         controller.transportControls.playFromMediaId(songs[0].mediaId, extras)
+                        controller.transportControls.seekTo(0L)
                     }
                 }
             }
@@ -254,6 +257,7 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                         Timber.w(songs.size.toString() + " songs for playlist with ID " + playlistID)
                         val extras = getExtraBundle(songs.toSongIds(), playlistRepository.getPlaylists("SDL").find { it.id == playlistID }!!.name)
                         controller.transportControls.playFromMediaId(songs[0].mediaId, extras)
+                        controller.transportControls.seekTo(0L)
                     }
                 }
             }
