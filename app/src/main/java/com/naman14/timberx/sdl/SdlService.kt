@@ -250,12 +250,9 @@ class SdlService : Service(), KoinComponent {
         }
     }
 
-    private fun onNowPlaying(nowPlaying: Bundle?) {
-        if(nowPlaying == null || sdlManager == null) {
-            return
-        }
+    private fun onNowPlaying(nowPlaying: Bundle) {
         val metadata = nowPlaying.getParcelable<MediaMetadataCompat>(Constants.SONG_METADATA)
-        if(metadata == null) {
+        if (metadata == null) {
             return;
         }
         var artFile : File? = null
