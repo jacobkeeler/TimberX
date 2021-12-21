@@ -16,9 +16,12 @@ import androidx.core.net.toUri
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.naman14.timberx.R
 import com.naman14.timberx.constants.Constants
+import com.naman14.timberx.constants.Constants.ACTION_NOW_PLAYING
 import com.naman14.timberx.constants.Constants.ALBUM_ID
 import com.naman14.timberx.constants.Constants.ARTIST_ID
 import com.naman14.timberx.constants.Constants.PLAYLIST_ID
+import com.naman14.timberx.models.Album
+import com.naman14.timberx.models.Artist
 import com.naman14.timberx.playback.TimberMusicService
 import com.naman14.timberx.repository.*
 import com.smartdevicelink.managers.SdlManager
@@ -93,7 +96,7 @@ class SdlService : Service(), KoinComponent {
             enterForeground()
         }
 
-        registerReceiver(broadCastReceiver, IntentFilter(Constants.ACTION_NOW_PLAYING))
+        registerReceiver(broadcastReceiver, IntentFilter(Constants.ACTION_NOW_PLAYING))
     }
 
     // Helper method to let the service enter foreground mode
@@ -120,12 +123,6 @@ class SdlService : Service(), KoinComponent {
             return START_STICKY
         }
 
-        when (intent?.action) {
-            Constants.ACTION_NOW_PLAYING -> {
-                onNowPlaying(intent?.extras)
-            }
-        }
-
         return START_STICKY
     }
 
@@ -133,8 +130,8 @@ class SdlService : Service(), KoinComponent {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             stopForeground(true)
         }
-
-        unregisterReceiver(broadCastReceiver)
+        
+        unregisterReceiver(broadcastReceiver)
 
         if (sdlManager != null) {
             sdlManager!!.dispose()

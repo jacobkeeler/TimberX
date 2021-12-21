@@ -174,7 +174,6 @@ class TimberMusicService : MediaBrowserServiceCompat(), KoinComponent, Lifecycle
                 actionIntent.putExtra(REPEAT_MODE, controller.repeatMode)
 
                 log("EVENT_NOW_PLAYING: ${metadata.description}, ${metadata.getString(METADATA_KEY_ALBUM_ART_URI)}")
-                //context.startService(actionIntent)
                 context.sendBroadcast(actionIntent)
             }
         })
