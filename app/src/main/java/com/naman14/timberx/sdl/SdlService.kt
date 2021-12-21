@@ -321,6 +321,19 @@ class SdlService : Service(), KoinComponent {
         return time
     }
 
+    private fun <T> filterDuplicates(list : List<T>, predicate: (T, T) -> Boolean): List<T> {
+        val filteredList = LinkedList<T>()
+        list.forEach { value ->
+            if (filteredList.find { predicate(it, value) } != null) {
+                Timber.i("Found duplicate: " + value)
+            }
+            else {
+                filteredList.add(value)
+            }
+        }
+        return filteredList
+    }
+
     /**
      * Send some voice commands
      */
@@ -333,7 +346,8 @@ class SdlService : Service(), KoinComponent {
         val menuCells = LinkedList<MenuCell>()
 
         val allArtists = artistRepository.getAllArtists(null)
-        val artistList: List<MenuCell> = allArtists.map {
+        val filteredArtists = filterDuplicates(allArtists) { it, value -> it.name == value.name }
+        val artistList: List<MenuCell> = filteredArtists.map {
             val id = it.id
             MenuCell(it.name, it.albumCount.toString() + " Album(s)", null,
                     null, null,
@@ -346,9 +360,14 @@ class SdlService : Service(), KoinComponent {
         menuCells.add(artistMenu)
 
         val allAlbums = albumRepository.getAllAlbums(null)
-        val albumList: List<MenuCell> = allAlbums.map {
+        val filteredAlbums = filterDuplicates(allAlbums) { it, value -> it.artist == value.artist && it.title == value.title }
+        val albumList: List<MenuCell> = filteredAlbums.map {
             val id = it.id
-            MenuCell(it.title, it.songCount.toString() + " Song(s)", null,
+            var menuName = it.title
+            if (it.title == it.artist) {
+                menuName += " (Self-titled)"
+            }
+            MenuCell(menuName, it.songCount.toString() + " Song(s)", null,
                     null, null,
                     Arrays.asList("Play " + it.title + " by " + it.artist),
                     { sendPlayAlbumAction(context, id) })
