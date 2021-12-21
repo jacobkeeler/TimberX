@@ -12,6 +12,15 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    <queries>
+        <intent>
+            <action android:name="com.smartdevicelink.router.service" />
+        </intent>
+        <intent>
+            <action android:name="sdl.router.startservice" />
+        </intent>
+    </queries>
+
     <application
         android:name=".TimberXApp"
         android:allowBackup="true"
@@ -106,9 +115,6 @@
             </intent-filter>
         </receiver>
 
-        <service android:name="com.applink.security.AppLinkSecurity" >
-        </service>
-
         <receiver android:name=".sdl.SdlReceiver"
             android:exported="true"
             android:enabled="true">
@@ -120,12 +126,12 @@
         <service
             android:name=".sdl.SdlRouterService"
             android:exported="true"
+            android:foregroundServiceType="connectedDevice"
             android:process="com.smartdevicelink.router">
             <intent-filter>
                 <action android:name="com.smartdevicelink.router.service" />
             </intent-filter>
-            <meta-data android:name="sdl_custom_router" android:value="false" />
-            <meta-data android:name="@string/sdl_router_service_version_name" android:value="10" />
+            <meta-data android:name="@string/sdl_router_service_version_name" android:value="@integer/sdl_router_service_version_value" />
         </service>
 
         <meta-data

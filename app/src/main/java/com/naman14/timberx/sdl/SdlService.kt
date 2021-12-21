@@ -2,8 +2,10 @@ package com.naman14.timberx.sdl
 
 import android.annotation.SuppressLint
 import android.app.*
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -11,6 +13,7 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.net.toUri
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.naman14.timberx.R
 import com.naman14.timberx.constants.Constants
 import com.naman14.timberx.constants.Constants.ALBUM_ID
@@ -66,6 +69,19 @@ class SdlService : Service(), KoinComponent {
     private val genreRepository by inject<GenreRepository>()
     private val playlistRepository by inject<PlaylistRepository>()
 
+    val broadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null || sdlManager == null || !ready) {
+                return
+            }
+            when (intent.action) {
+                ACTION_NOW_PLAYING -> {
+                    intent.extras?.let { onNowPlaying(it) }
+                }
+            }
+        }
+    }
+
     override fun onBind(intent: Intent): IBinder? {
         return null
     }
@@ -76,6 +92,8 @@ class SdlService : Service(), KoinComponent {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             enterForeground()
         }
+
+        registerReceiver(broadCastReceiver, IntentFilter(Constants.ACTION_NOW_PLAYING))
     }
 
     // Helper method to let the service enter foreground mode
@@ -115,6 +133,9 @@ class SdlService : Service(), KoinComponent {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             stopForeground(true)
         }
+
+        unregisterReceiver(broadCastReceiver)
+
         if (sdlManager != null) {
             sdlManager!!.dispose()
         }
@@ -231,6 +252,9 @@ class SdlService : Service(), KoinComponent {
 
     private fun onNowPlaying(nowPlaying: Bundle) {
         val metadata = nowPlaying.getParcelable<MediaMetadataCompat>(Constants.SONG_METADATA)
+        if (metadata == null) {
+            return;
+        }
         var artFile : File? = null
         var sdlArtwork : SdlArtwork? = null
         if (metadata.containsKey(MediaMetadataCompat.METADATA_KEY_ART_URI)) {
